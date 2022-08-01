@@ -1,0 +1,219 @@
+<html>
+
+<head>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
+    <h2> Project 2 </h2>
+    <h4> Jacob Ball (Jab869), Akshay Yadava (Aay29), Sabrina Chu (Sc2323), Grace Han (Gsh68) </h4>
+
+    <style>
+        .gridlines line {
+            stroke: #bbb;
+        }
+        
+        .gridlines .domain {
+            stroke: none;
+        }
+        
+        g.mouseover rect {
+            fill: white;
+            stroke: #222;
+            stroke-width: 1px;
+        }
+        
+        g.mouseover text {
+            font-family: Arial, sans-serif;
+        }
+        
+        g.mouseover text:first-child {
+            font-weight: bold;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <h1 style="text-align: center;"> Military Spending of Countries in 2010 </h1>
+
+    <div style="padding-bottom: 40px; font-size: 20px; text-align: center;"> The dotted line represents the average military expenditures for all the countries. <br> The green circles represents the countries that spend above the average. <br> The red circles represents the countries that spend below the average. </div>
+
+    <div style="font-size: 20px"> Military Expenditure (USD)</div>
+    <svg id="plot" height='700' width='1500' style='margin-left: 100px'>
+        <text id="label" x="250" y="25" text-anchor="end" alignment-baseline="hanging"> </text>
+    </svg>
+    <div id="countryLabel" x="300" y="750" style="position: relative; top: 20px; text-align: center;">
+        <text style=" padding-bottom: 100px; font-size: 20px"> Country Abbreviations</text>
+    </div>
+
+    <div id="button-bar"></div>
+
+
+    <script>
+        const svg = d3.select("#plot");
+        const margin = {
+            top: 0,
+            right: 20,
+            bottom: 20,
+            left: 130
+        };
+
+        // svg.append("text")
+        //     .attr("text-anchor", "middle")
+        //     .attr("font-size", "15px")
+        //     .attr("font-family", "Verdana")
+        //     .attr("x", 10)
+        //     .attr("y", 300)
+        //     .attr("dominant-baseline", "middle")
+        //     .attr("writing-mode", "vertical-rl")
+        //     .attr("text-orientation", "mixed")
+        //     .text("Military Expenditure (USD)");
+
+        d3.json('./military_expenditure.json').then((military_data) => {
+            d3.json('./gdp.json').then((gdp_data) => {
+
+                const filtered_military_data = military_data.filter(
+                    d =>
+                    d["type"] == "Country" &&
+                    d["1960"] !== null &&
+                    d["2010"] !== null &&
+                    d["2011"] !== null &&
+                    d["2012"] !== null &&
+                    d["2013"] !== null &&
+                    d["2014"] !== null &&
+                    d["2015"] !== null &&
+                    d["2016"] !== null &&
+                    d["2017"] !== null &&
+                    d["2018"] !== null &&
+                    d["2019"] !== null &&
+                    d["2010"] !== 0 &&
+                    d["2019"] !== 0 &&
+                    d["name"] !== "United States"
+                );
+
+                const filtered_gdp_data = gdp_data.filter(
+                    d =>
+                    d["2010"] !== "" &&
+                    d["2019"] !== "" &&
+                    d["2010"] !== 0 &&
+                    d["2019"] !== 0 &&
+                    d["name"] !== "United States"
+                );
+
+                const record2010 = {}
+
+                filtered_gdp_data.forEach(e => record2010[e['code']] = e['2010']);
+
+                const width = svg.attr("width");
+                const chartWidth = width - margin.left - margin.right;
+                const height = svg.attr("height");
+                const chartHeight = height - margin.top - margin.bottom;
+
+                let annotations = svg.append("g").attr("id", "annotations");
+                let chartArea = svg.append("g").attr("id", "chartArea").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                const mouseover = svg.append("g").attr("class", "mouseover").attr("transform", `translate(${margin.left + 15},${margin.top + 15})`);
+
+                function stringLen(str) {
+                    const randomtext = mouseover.append("text").attr("class", "legendtext").attr("visibility", "hidden");
+                    randomtext.text(str)
+                    let len = randomtext.node().getComputedTextLength()
+                    randomtext.remove()
+                    return len;
+                }
+
+                const border = mouseover.append("rect").attr("class", "border")
+                    .attr("x", 0).attr("y", 0)
+                    .attr("rx", 5).attr("ry", 5)
+                    .attr("height", 90);
+                const textbox = mouseover.append("g").attr("transform", "translate(10,10)");
+                const format = d3.format(',d');
+
+
+                function updateMouseover(d) {
+                    textbox.html('');
+                    let countryName = `Country: ${d['name']}`;
+                    let militarySpen = `Military Spending in 2010: $${d['2010'].toLocaleString()}`;
+                    let gdp = `GDP Growth in 2010: ${Number(record2010[d['code']]).toFixed(3)}%`;
+                    let maxWidth = Math.max(stringLen(countryName), stringLen(militarySpen), stringLen(gdp))
+                    border.attr("width", maxWidth + 20);
+
+                    textbox.append("text").text(countryName).attr("x", 0).attr("y", 10);
+                    textbox.append("text").text(militarySpen).attr("x", 0).attr("y", 35);
+                    textbox.append("text").text(gdp).attr("x", 0).attr("y", 55);
+                }
+
+                const military_spendingExtent2010 = d3.extent(filtered_military_data, d => d['2010']);
+                const countryAbrevs = d3.map(filtered_military_data, d => d.code);
+
+                const countryScale = d3.scalePoint().domain(countryAbrevs).range([margin.left, chartWidth + margin.left]);
+                const xAxis = d3.axisBottom(countryScale)
+
+                const xGridlines = d3.axisBottom(countryScale).tickSize(-height).tickFormat("");
+                annotations.append("g").attr("transform", "translate(0," + (chartHeight) + ")").call(xAxis);
+
+                const yScale = d3.scaleLinear().domain([0, military_spendingExtent2010[1]]).range([chartHeight - margin.bottom, margin.bottom]);
+                filtered_military_data.forEach((d, i) => {});
+
+                const yAxis = d3.axisLeft(yScale)
+                    .tickFormat(d3.format("$,d"));
+                const avg2010mil = d3.mean(filtered_military_data, d => d['2010']);
+
+                const yGridlines = d3.axisLeft(yScale).tickSize(-width).tickFormat("");
+                annotations.append("g").attr("transform", "translate(" + (margin.left - 20) + ",0)").call(yAxis);
+                annotations.append("g").attr("transform", "translate(" + (margin.left - 20) + ",0)").attr("class", "y gridlines").style("color", "lightgrey").call(yGridlines);
+
+                function color(d) {
+                    if (d['2010'] > avg2010mil) {
+                        return "green"
+                    } else {
+                        return "red"
+                    }
+                };
+
+                annotations.append("line")
+                    .attr("class", "avgLine")
+                    .attr("transform", `translate(${margin.left},${margin.top})`)
+                    .attr("x1", -margin.right)
+                    .attr("x2", chartWidth + margin.right)
+                    .attr("y1", yScale(avg2010mil))
+                    .attr("stroke", "black")
+                    .attr("stroke-width", 2)
+                    .attr("stroke-dasharray", 8)
+                    .attr("y2", yScale(avg2010mil));
+
+
+                const lollipops = chartArea.selectAll("g.lollipop").data(filtered_military_data, d => d['code'])
+                    .join("g")
+                    .attr("class", "lollipop")
+                    .attr("transform", d => `translate(${countryScale(d['code']) - margin.left},0)`);
+                lollipops.append("line")
+                    .attr("class", "stick")
+                    .attr("x1", 0)
+                    .attr("x2", 0)
+                    .attr("y1", yScale(avg2010mil))
+                    .attr("stroke", "black")
+                    .attr("y2", d => yScale(d['2010']));
+                lollipops.append("circle")
+                    .attr("class", "pop")
+                    .attr("r", 8)
+                    .attr("fill", d => color(d))
+                    .attr("cx", 0)
+                    .attr("cy", d => yScale(d['2010']));
+
+
+                lollipops.on("mouseover", function(d) {
+                    mouseover.attr("visibility", "");
+                    updateMouseover(d3.select(this).datum())
+                });
+                lollipops.on("mouseout", function() {
+                    mouseover.attr("visibility", "hidden");
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>
+
+</html>
